@@ -1,0 +1,20 @@
+# Start from this Docker image
+Bootstrap: docker
+From: antsx/antspy:v0.3.7
+
+%post
+
+%environment
+  export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8
+
+%files
+  # place your python script inside the container
+  my_script.py /usr/local/bin/my_script.py
+
+# ***Please dont change the following lines
+%runscript
+
+    echo "Arguments received: $*"
+    echo 'Executing: python3 /usr/local/bin/my_script.py '"$@"
+    exec python3 /usr/local/bin/my_script.py "$@"
+
