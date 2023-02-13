@@ -4,6 +4,7 @@ import os
 import glob
 import numpy as np
 import pandas as pd
+import shutil
 
 
 def generate_output(args):
@@ -40,6 +41,17 @@ def generate_output(args):
 
         reg = ants.registration(baseline_image, followup_image, type_of_transform="antsRegistrationSyN[s,2]", verbose=1)
 
+        # Create composite warps. These are optionally moved to the output directory later
+        # Note f2b warps *points* from f to b
+        # b2f warps *images* from f to b
+        fwd_composite_warp_file = os.path.join(args["output"], f"{subj}_df_b2f.nii.gz")
+        tmp_fwd_composite_warp_file = ants.apply_transforms(baseline_image, followup_image, transformlist=reg['fwdtransforms'],
+                                                            whichtoinvert=(False, False), compose=f"/tmp/{subj}_df_b2f")
+
+        inv_composite_warp_file = os.path.join(args["output"], f"{subj}_df_f2b.nii.gz")
+        tmp_inv_composite_warp_file = ants.apply_transforms(baseline_image, followup_image, transformlist=reg['invtransforms'],
+                                                            whichtoinvert=(True, False), compose=f"/tmp/{subj}_df_f2b")
+
         ## 1. Warp landmarks
 
         moving_indices = pd.read_csv(followup_landmark_file).drop('Landmark', axis=1)
@@ -51,14 +63,14 @@ def generate_output(args):
             moving_points[j,:] = ants.transform_index_to_physical_point(baseline_image, (moving_indices.iloc[j].values).astype(int))
 
         moving_points_df = pd.DataFrame(data = {'x': moving_points[:,0], 'y': moving_points[:,1], 'z': moving_points[:,2]})
-        moving_warped_points = ants.apply_transforms_to_points(3, moving_points_df, reg['invtransforms'], whichtoinvert=(True, False))
+        moving_warped_points = ants.apply_transforms_to_points(3, moving_points_df, [tmp_inv_composite_warp_file], whichtoinvert=[False])
         moving_warped_points = moving_warped_points.to_numpy()
         moving_warped_points_df = pd.DataFrame(data=moving_warped_points, columns=['X', 'Y', 'Z'])
         moving_warped_points_df.insert(0, "Landmark", list(range(1, moving_points.shape[0]+1)))
         moving_warped_points_df.to_csv(warped_followup_landmark_file, index=False)
 
         ## 2. calculate the determinant of jacobian of the deformation field
-        output_detj = ants.create_jacobian_determinant_image(baseline_image, reg['fwdtransforms'][0], do_log=True)
+        output_detj = ants.create_jacobian_determinant_image(baseline_image, tmp_fwd_composite_warp_file, do_log=True)
 
         ## write your output_detj to the output folder
         ants.image_write(output_detj, os.path.join(args["output"], f"{subj}_detj.nii.gz"))
@@ -66,16 +78,10 @@ def generate_output(args):
         if args["def"]:
             # write both the forward and backward deformation fields to the output/ folder
             print("--def flag is set to True")
-            fwd_composite_warp_file = os.path.join(args["output"], f"{subj}_df_f2b.nii.gz")
             print("fWriting composite forward warps to {fwd_composite_warp_file}")
-            tmp_fwd_composite_warp_file = ants.apply_transforms(baseline_image, followup_image, transformlist=reg['fwdtransforms'],
-                                          whichtoinvert=(False, False), compose=fwd_composite_warp_file)
-            os.rename(tmp_fwd_composite_warp_file,fwd_composite_warp_file)
+            shutil.copy(tmp_fwd_composite_warp_file,fwd_composite_warp_file)
             print("fWriting composite inverse warps to {inv_composite_warp_file}")
-            inv_composite_warp_file = os.path.join(args["output"], f"{subj}_df_b2f.nii.gz")
-            tmp_inv_composite_warp_file = ants.apply_transforms(baseline_image, followup_image, transformlist=reg['invtransforms'],
-                                  whichtoinvert=(True, False), compose=inv_composite_warp_file)
-            os.rename(tmp_inv_composite_warp_file,inv_composite_warp_file)
+            shutil.copy(tmp_inv_composite_warp_file,inv_composite_warp_file)
 
         if args["reg"]:
             # write the followup_registered_to_baseline sequences (all 4 sequences provided) to the output/ folder
@@ -84,7 +90,7 @@ def generate_output(args):
                 contrast_moving_file = glob.glob(os.path.join(subj_path, f"{subj}_01_*_{contrast}.nii.gz"))[0]
                 contrast_moving = ants.image_read(contrast_moving_file)
                 warped = ants.apply_transforms(baseline_image, contrast_moving,
-                                               transformlist=reg['fwdtransforms'], whichtoinvert=(False, False))
+                                               transformlist=[tmp_fwd_composite_warp_file], whichtoinvert=[False])
                 ants.image_write(warped, os.path.join(args["output"], f"{subj}_{contrast}_f2b.nii.gz"))
 
 
