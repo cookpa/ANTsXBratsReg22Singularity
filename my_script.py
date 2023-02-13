@@ -70,7 +70,7 @@ def generate_output(args):
         moving_warped_points_df.to_csv(warped_followup_landmark_file, index=False)
 
         ## 2. calculate the determinant of jacobian of the deformation field
-        output_detj = ants.create_jacobian_determinant_image(baseline_image, tmp_fwd_composite_warp_file, do_log=True)
+        output_detj = ants.create_jacobian_determinant_image(baseline_image, tmp_fwd_composite_warp_file, do_log=False)
 
         ## write your output_detj to the output folder
         ants.image_write(output_detj, os.path.join(args["output"], f"{subj}_detj.nii.gz"))
