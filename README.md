@@ -31,3 +31,9 @@ Random sampling can be disabled with a fixed random seed `X` by setting the evir
 variable `ANTS_RANDOM_SEED=X`. To make the registration fully deterministic, set the
 random seed and also `ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=1`.
 
+
+## Container image
+
+The container image is available at 
+
+https://cloud.sylabs.io/library/cookpa/brats_reg/brats_reg_antsx
